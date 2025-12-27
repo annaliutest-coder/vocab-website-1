@@ -32,17 +32,19 @@ async function loadData() {
     lessonData = await lessonRes.json();
     
     // ==========================================
-    // 核心修正：預設全選所有課別 (B1L1...B6L1)
-    // 這樣「因為」、「大家」等課本詞彙預設就會被過濾
+    // 核心修正：預設【不勾選】任何課別
+    // 使用者進入網頁後，需手動選擇要避開的範圍
     // ==========================================
     selectedLessons.clear();
-    Object.keys(lessonData).forEach(k => selectedLessons.add(k));
+    // 註解掉下面這行，原本是預設全選
+    // Object.keys(lessonData).forEach(k => selectedLessons.add(k));
     
     // 將所有課本生詞加入「斷詞提示庫」(knownWords)，確保斷詞準確
+    // 這一步是為了讓斷詞引擎知道這些是詞彙，但過濾與否由 selectedLessons 決定
     Object.values(lessonData).forEach(wordList => wordList.forEach(w => knownWords.add(w)));
 
     renderLessonCheckboxes();
-    console.log(`資料載入完成。已預設過濾 ${selectedLessons.size} 課的生詞。`);
+    console.log('資料載入完成');
   } catch (error) {
     console.error('載入失敗:', error);
     alert('載入資料失敗，請確認 JSON 檔案是否存在');
@@ -143,9 +145,9 @@ function highlightWordInInput(word) {
         // 設定捲動 (會透過 syncScroll 自動同步 backdrop)
         input.scrollTop = scrollTarget;
         
-        // 確保輸入框獲得焦點，但不選取文字
+        // 確保輸入框獲得焦點，方便鍵盤操作，但不要選取文字
         input.focus(); 
-        input.setSelectionRange(index, index);
+        input.setSelectionRange(index, index); // 將游標置於詞彙開頭，但不選取
     }
 }
 
@@ -215,7 +217,7 @@ function renderLessonCheckboxes() {
           cb.type = 'checkbox';
           cb.value = l;
           cb.className = `lesson-cb book-${bookName}`;
-          // 根據 selectedLessons 設定是否勾選
+          // 這裡根據 selectedLessons 設定是否勾選，現在預設為 false
           cb.checked = selectedLessons.has(l);
           cb.onchange = () => {
               if (cb.checked) selectedLessons.add(l); else selectedLessons.delete(l);
