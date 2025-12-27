@@ -19,6 +19,7 @@ let reverseIndex = { lai: {}, mtc: {} };
 
 let editingIndex = -1;
 let lastAnalysisResult = [];
+let searchState = { word: '', lastIndex: -1 };
 
 document.addEventListener('DOMContentLoaded', async () => {
     await loadAllData();
@@ -83,9 +84,6 @@ window.setSource = function(source) {
          ?.classList.add('active');
 
     renderCheckboxes();
-    // 切換教材時，是否要保留已勾選的 "其他教材" 課程？
-    // 為了避免混亂，通常顯示什麼就過濾什麼。但資料結構 selectedLessons 有 prefix，所以互不衝突。
-    // 更新 UI 顯示的計數
     updateSelectedCount();
     
     // 如果有文字，重新分析以更新標籤 (出處標籤會變)
@@ -115,7 +113,6 @@ function renderCheckboxes() {
         }
         // Lai: B1 -> B1 (或者可以歸類為 "第一冊")
         else if (key.match(/^B\d+/)) {
-            // 來學華語直接用 B1, B2 當群組
             groupName = key;
         }
 
@@ -203,7 +200,7 @@ function toggleGroup(e, keys) {
         if (checked) selectedLessons.add(prefix + k);
         else selectedLessons.delete(prefix + k);
     });
-    renderCheckboxes(); // 重繪以更新子項目狀態
+    renderCheckboxes(); 
     updateSelectedCount();
     if (document.getElementById('inputText').value.trim()) analyzeText();
 }
@@ -212,7 +209,6 @@ function toggleLesson(fullKey) {
     if (selectedLessons.has(fullKey)) selectedLessons.delete(fullKey);
     else selectedLessons.add(fullKey);
     
-    // 更新父層狀態比較麻煩，直接重繪最快
     renderCheckboxes();
     updateSelectedCount();
     if (document.getElementById('inputText').value.trim()) analyzeText();
@@ -234,7 +230,7 @@ function analyzeText() {
     document.getElementById('inputBackdrop').innerHTML = '';
 
     // 1. 準備過濾清單 (Blocklist)
-    const blocklist = new Set(customOldVocab);
+    const blocklist = new Set(customVocab);
     selectedLessons.forEach(fullKey => {
         const [src, key] = fullKey.split(':');
         const list = dataSources[src]?.[key];
@@ -244,13 +240,14 @@ function analyzeText() {
     // 2. 斷詞
     let words = [];
     const useAdvanced = document.getElementById('useAdvancedSegmenter').checked;
+    const useGrammar = document.getElementById('useGrammarRules').checked;
     
-    // 斷詞參考庫：包含 TBCL + 所有教材詞 + 手動詞
+    // 斷詞參考庫：包含 TBCL + 所有教材詞
     const segmentDict = { ...tbclData };
     knownWords.forEach(w => { if (!segmentDict[w]) segmentDict[w] = '0'; });
     
     if (useAdvanced && typeof advancedSegment !== 'undefined') {
-        words = advancedSegment(text, segmentDict, blocklist, true, true);
+        words = advancedSegment(text, segmentDict, blocklist, true, useGrammar);
     } else {
         const segmenter = new Intl.Segmenter('zh-TW', { granularity: 'word' });
         words = Array.from(segmenter.segment(text)).map(s => s.segment);
@@ -268,8 +265,8 @@ function analyzeText() {
         seen.add(w);
         
         // 取得資訊
-        const tbclLevel = tbclData[w]; // e.g. "1", "第1級"
-        // 正規化 TBCL 顯示
+        const tbclLevel = tbclData[w]; // e.g. "第1級" or "1"
+        // 正規化 TBCL 顯示 (移除 "第" "級")
         let levelDisplay = tbclLevel ? (tbclLevel.match(/\d+/) ? tbclLevel.match(/\d+/)[0] : tbclLevel) : null;
         
         // 取得出處 (依據當前選擇的教材)
@@ -345,7 +342,7 @@ window.addCustomVocab = () => {
     if (!val.trim()) return;
     val.split(/\s+/).forEach(w => {
         if (w.trim()) {
-            customOldVocab.add(w.trim());
+            customVocab.add(w.trim());
             knownWords.add(w.trim()); // 也要加入斷詞庫
         }
     });
@@ -355,13 +352,13 @@ window.addCustomVocab = () => {
 };
 
 window.clearCustomVocab = () => {
-    customOldVocab.clear();
+    customVocab.clear();
     updateCustomCount();
     if (document.getElementById('inputText').value.trim()) analyzeText();
 };
 
 function updateCustomCount() {
-    document.getElementById('customCount').innerText = customOldVocab.size;
+    document.getElementById('customCount').innerText = customVocab.size;
 }
 
 // 綠色定位
@@ -370,10 +367,18 @@ function highlightWord(word) {
     const backdrop = document.getElementById('inputBackdrop');
     const text = input.value;
     
-    // 搜尋
-    let idx = text.indexOf(word);
-    // (這裡簡化，直接找第一個，若要循環搜尋可參考前一版)
-    if (idx === -1) return;
+    if (searchState.word !== word) {
+        searchState.word = word;
+        searchState.lastIndex = -1;
+    }
+
+    let idx = text.indexOf(word, searchState.lastIndex + 1);
+    if (idx === -1) {
+        idx = text.indexOf(word, 0); 
+        if (idx === -1) { alert(`在原文中找不到「${word}」`); return; }
+    }
+    
+    searchState.lastIndex = idx;
 
     const pre = text.substring(0, idx);
     const target = text.substring(idx, idx + word.length);
@@ -383,10 +388,11 @@ function highlightWord(word) {
         `<span class="highlight-marker">${escapeHTML(target)}</span>` + 
         escapeHTML(post) + (text.endsWith('\n') ? '<br>' : '');
 
-    // 捲動
     const marker = backdrop.querySelector('.highlight-marker');
     if (marker) {
-        input.scrollTop = marker.offsetTop - 100;
+        const offsetTop = marker.offsetTop;
+        const scrollTarget = offsetTop - (input.clientHeight / 2) + (marker.offsetHeight / 2);
+        input.scrollTop = scrollTarget;
         input.focus();
         input.setSelectionRange(idx, idx);
     }
@@ -397,40 +403,67 @@ function initBackdropSync() {
     const input = document.getElementById('inputText');
     const backdrop = document.getElementById('inputBackdrop');
     
-    const sync = () => {
+    const syncStyles = () => {
         const style = window.getComputedStyle(input);
-        ['fontFamily','fontSize','lineHeight','padding','border','width'].forEach(k => {
-            // 簡化處理，實際需完整複製所有排版屬性
-        });
-        // 這裡直接用 CSS class 控制大部分樣式，JS 處理捲動
-        backdrop.style.width = input.clientWidth + 'px'; // 扣除捲軸
-        backdrop.scrollTop = input.scrollTop;
-    };
-    
-    // 完整屬性同步
-    const fullSync = () => {
-        const s = window.getComputedStyle(input);
-        backdrop.style.font = s.font;
-        backdrop.style.lineHeight = s.lineHeight;
-        backdrop.style.padding = s.padding;
-        backdrop.style.border = s.border;
-        backdrop.style.boxSizing = s.boxSizing;
+        const props = [
+            'fontFamily', 'fontSize', 'lineHeight', 'letterSpacing', 'wordSpacing',
+            'paddingTop', 'paddingBottom', 'paddingLeft', 'paddingRight',
+            'borderTopWidth', 'borderBottomWidth', 'borderLeftWidth', 'borderRightWidth',
+            'boxSizing'
+        ];
+        props.forEach(p => backdrop.style[p] = style[p]);
         backdrop.style.width = input.clientWidth + 'px';
     };
 
-    input.addEventListener('scroll', () => { backdrop.scrollTop = input.scrollTop; });
-    input.addEventListener('input', () => { backdrop.innerHTML = ''; });
-    new ResizeObserver(fullSync).observe(input);
-    setTimeout(fullSync, 100);
+    const syncScroll = () => {
+        backdrop.scrollTop = input.scrollTop;
+        backdrop.scrollLeft = input.scrollLeft;
+    };
+
+    input.addEventListener('scroll', syncScroll);
+    input.addEventListener('input', () => {
+        backdrop.innerHTML = '';
+        syncScroll();
+    });
+    
+    new ResizeObserver(() => {
+        syncStyles();
+        syncScroll();
+    }).observe(input);
+    setTimeout(syncStyles, 100);
+}
+
+function setupEvents() {
+    document.getElementById('analyzeBtn').onclick = analyzeText;
+    document.getElementById('clearBtn').onclick = () => {
+        document.getElementById('inputText').value = '';
+        document.getElementById('outputList').innerHTML = '';
+        document.getElementById('stats').innerHTML = '<span>總字數: 0</span><span>生詞數: 0</span>';
+        document.getElementById('inputBackdrop').innerHTML = '';
+        lastAnalysisResult = [];
+    };
+    
+    // Copy & Export
+    document.getElementById('copyBtn').onclick = () => {
+        if (!lastAnalysisResult.length) return;
+        const t = lastAnalysisResult.map((i,idx)=>`${idx+1}. ${i.word} (Level ${i.level||'?'})`).join('\n');
+        navigator.clipboard.writeText(t).then(()=>alert('已複製'));
+    };
+    document.getElementById('exportBtn').onclick = () => {
+        if (!lastAnalysisResult.length) return;
+        const b = new Blob([JSON.stringify(lastAnalysisResult,null,2)],{type:'application/json'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(b);
+        a.download = 'vocab.json';
+        a.click();
+    };
 }
 
 // 切分與合併 (含學習機制)
 window.mergeWords = (i) => {
     const l = lastAnalysisResult;
     const newWord = l[i].word + l[i+1].word;
-    knownWords.add(newWord); // 學習
-    // 重新分析最簡單，但為了效能可直接操作陣列
-    // 這裡直接重新分析以確保過濾邏輯正確
+    knownWords.add(newWord); 
     analyzeText(); 
 };
 
@@ -438,6 +471,7 @@ window.openSplitModal = (i) => {
     editingIndex = i;
     document.getElementById('splitInput').value = lastAnalysisResult[i].word;
     document.getElementById('splitModal').style.display = 'block';
+    setTimeout(()=>document.getElementById('splitInput').focus(), 100);
 };
 window.closeSplitModal = () => document.getElementById('splitModal').style.display = 'none';
 window.confirmSplit = () => {
@@ -455,5 +489,4 @@ function naturalSort(a, b) {
     return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
 }
 function escapeHTML(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
-function copyResults() { /* 略 */ }
-function exportJSON() { /* 略 */ }
+function loadCustomVocab() { /* 保持不變 */ }

@@ -40,6 +40,11 @@
       text-shadow: 0 2px 10px rgba(0,0,0,0.2);
     }
     
+    header p {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+    
     .main-content {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -121,6 +126,7 @@
     
     .input-area:focus { outline: none; border-color: #667eea; }
     
+    /* 綠色反白標記 */
     .highlight-marker {
         background-color: #9ae6b4;
         border-radius: 3px;
@@ -195,6 +201,7 @@
     /* 手動舊詞 */
     .settings-section { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ccc; flex-shrink: 0; }
     .settings-textarea { width: 100%; height: 60px; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; margin-bottom: 5px; }
+    .settings-textarea:focus { outline: none; border-color: #667eea; }
     
     .controls { display: flex; gap: 10px; margin-top: 10px; }
     .btn-primary { background: #667eea; color: white; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; flex: 2; }
@@ -215,7 +222,8 @@
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
     
-    .vocab-content { flex: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    /* 標籤容器，支援換行 */
+    .vocab-info { flex: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
     .vocab-word { font-size: 18px; font-weight: bold; margin-right: 5px; color: #2d3748; }
     
     /* 標籤樣式 */
@@ -243,10 +251,14 @@
     .level-5 { border-left-color: #ed8936; }
     .level-6 { border-left-color: #9f7aea; }
     .level-7 { border-left-color: #f56565; }
+    .level-0 { border-left-color: #cbd5e0; }
 
     .stats { margin-top: 10px; font-size: 13px; color: #666; display: flex; justify-content: space-between; }
+    .info-box { background: #ebf8ff; border: 1px solid #bee3f8; color: #2c5282; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; }
+    .button-group { display: flex; gap: 10px; margin-top: 10px; }
+    .status { margin-top: 10px; padding: 10px; border-radius: 5px; display: none; }
+    .status.success { background: #c6f6d5; color: #22543d; }
 
-    /* Modal */
     .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
     .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border-radius: 12px; width: 300px; text-align: center; }
   </style>
