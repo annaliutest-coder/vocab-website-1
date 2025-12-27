@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>教材生詞分析助手 - Vol.6 Editor</title>
+  <title>教材生詞分析助手 - 多教材版</title>
   <style>
     * {
       margin: 0;
@@ -35,14 +35,9 @@
     }
     
     header h1 {
-      font-size: 32px;
+      font-size: 28px;
       margin-bottom: 5px;
       text-shadow: 0 2px 10px rgba(0,0,0,0.2);
-    }
-    
-    header p {
-      font-size: 14px;
-      opacity: 0.9;
     }
     
     .main-content {
@@ -72,20 +67,20 @@
     .panel h2 {
       color: #333;
       margin-bottom: 15px;
-      font-size: 20px;
+      font-size: 18px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       flex-shrink: 0;
     }
     
-    /* === 輸入框與背景層結構 === */
+    /* 輸入框區域 */
     .input-wrapper {
         position: relative;
         width: 100%;
         margin-bottom: 15px;
         flex-shrink: 0;
-        height: 300px; /* 留空間給下方設定 */
+        height: 250px;
         z-index: 0;
     }
 
@@ -118,8 +113,8 @@
         resize: none;
         padding: 15px;
         font-family: 'Microsoft JhengHei', sans-serif;
-        font-size: 18px;
-        line-height: 1.8;
+        font-size: 16px;
+        line-height: 1.6;
         overflow-y: auto;
         transition: border-color 0.3s;
     }
@@ -132,108 +127,128 @@
         color: transparent;
         box-shadow: 0 0 0 2px #9ae6b4;
     }
-    
-    /* === 教材選擇器樣式 (新增) === */
-    .source-selector {
+
+    /* === 教材切換按鈕 === */
+    .source-switch {
         display: flex;
         gap: 10px;
-        margin-bottom: 15px;
-        background: #edf2f7;
+        margin-bottom: 10px;
+        background: #e2e8f0;
         padding: 5px;
         border-radius: 8px;
     }
-
+    
     .source-btn {
         flex: 1;
-        padding: 8px;
         border: none;
-        background: transparent;
-        color: #4a5568;
-        cursor: pointer;
+        padding: 8px;
         border-radius: 6px;
+        background: transparent;
+        color: #64748b;
         font-weight: bold;
+        cursor: pointer;
         transition: all 0.2s;
     }
-
+    
     .source-btn.active {
-        background: #fff;
-        color: #667eea;
+        background: white;
+        color: #4c51bf;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
 
-    /* Lesson Selector */
+    /* 課程選擇清單 */
     .lesson-selector {
         border: 1px solid #e2e8f0;
         border-radius: 8px;
-        padding: 15px;
-        margin-bottom: 20px;
+        padding: 10px;
+        margin-bottom: 15px;
         background: #f8fafc;
         flex-shrink: 0;
-        max-height: 300px;
+        max-height: 250px;
         overflow-y: auto;
     }
 
-    .control-row { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #e2e8f0; }
-    .control-label { font-size: 13px; color: #666; margin-bottom: 6px; font-weight: bold; }
-    .btn-xs { padding: 4px 8px; font-size: 12px; margin-right: 4px; margin-bottom: 4px; }
-    
-    /* 分冊摺疊樣式 */
-    .book-group { margin-bottom: 8px; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; background: white; }
-    .book-header { padding: 8px 12px; background: #f1f5f9; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: bold; }
-    .book-header:hover { background: #e2e8f0; }
-    .book-content { padding: 8px; display: none; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 6px; background: white; }
-    .book-content.open { display: grid; }
-    .checkbox-item { display: flex; align-items: center; font-size: 12px; cursor: pointer; padding: 4px; }
-    .checkbox-item:hover { background-color: #f7fafc; }
-    .checkbox-item input { margin-right: 4px; }
-
-    /* 其他 UI */
-    .settings-section { margin-top: 20px; padding-top: 10px; border-top: 2px dashed #eee; flex-shrink: 0; }
-    .settings-textarea { width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 8px; resize: vertical; font-family: 'Microsoft JhengHei', sans-serif; font-size: 14px; line-height: 1.5; background-color: #fff; margin-bottom: 10px; }
-    .settings-textarea:focus { outline: none; border-color: #667eea; }
-    
-    .button-group { display: flex; gap: 10px; margin-top: 10px; }
-    .info-box { background: #ebf8ff; border: 1px solid #bee3f8; color: #2c5282; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; }
-    
-    .main-actions { margin-top: 20px; padding-top: 20px; border-top: 2px solid #eee; display: flex; gap: 10px; flex-shrink: 0; }
-    .main-actions button { padding: 12px 20px; font-size: 18px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-    
-    .btn-primary { background: #667eea; color: white; flex: 2; border: none; cursor: pointer; }
-    .btn-secondary { background: #e2e8f0; color: #4a5568; flex: 1; border: none; cursor: pointer; }
-    .btn-success { background: #48bb78; color: white; border: none; cursor: pointer; padding: 8px 16px; border-radius: 6px; }
-
-    /* 結果區 */
-    .output-area { flex: 1; overflow-y: auto; border: 1px solid #eee; border-radius: 10px; padding: 10px; background: #f8fafc; }
-    .vocab-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: white; margin-bottom: 8px; border-radius: 8px; border-left: 5px solid #ccc; }
-    .vocab-info { display: flex; align-items: center; gap: 10px; }
-    .level-tag { padding: 4px 8px; border-radius: 4px; font-size: 12px; color: white; font-weight: bold; }
-    .action-btn { padding: 4px 8px; font-size: 12px; background: #edf2f7; color: #4a5568; border-radius: 4px; margin-left: 5px; cursor: pointer; border: none; }
-    .merge-btn { background: #e6fffa; color: #2c7a7b; }
-    
-    .level-1 { border-left-color: #48bb78; } .level-1 .level-tag { background: #48bb78; }
-    .level-2 { border-left-color: #38b2ac; } .level-2 .level-tag { background: #38b2ac; }
-    .level-3 { border-left-color: #4299e1; } .level-3 .level-tag { background: #4299e1; }
-    .level-4 { border-left-color: #ecc94b; } .level-4 .level-tag { background: #ecc94b; color: #744210; }
-    .level-5 { border-left-color: #ed8936; } .level-5 .level-tag { background: #ed8936; }
-    .level-6 { border-left-color: #9f7aea; } .level-6 .level-tag { background: #9f7aea; }
-    .level-7 { border-left-color: #f56565; } .level-7 .level-tag { background: #f56565; }
-    .stats { margin-top: 15px; color: #666; font-size: 14px; flex-shrink: 0; display: flex; justify-content: space-between; }
-    .status { margin-top: 10px; padding: 10px; border-radius: 5px; display: none; }
-    .status.success { background: #c6f6d5; color: #22543d; }
-
-    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); animation: fadeIn 0.3s; }
-    .modal-content { background-color: #fefefe; margin: 15% auto; padding: 25px; border-radius: 12px; width: 90%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); animation: slideIn 0.3s; }
-    @keyframes fadeIn { from {opacity: 0} to {opacity: 1} }
-    @keyframes slideIn { from {transform: translateY(-20px)} to {transform: translateY(0)} }
-
-    @media (max-width: 768px) {
-      body { height: auto; overflow: auto; }
-      .container { height: auto; }
-      .main-content { grid-template-columns: 1fr; height: auto; overflow: visible; }
-      .panel { height: auto; overflow: visible; }
-      .input-wrapper { height: 300px; }
-      .output-area { min-height: 300px; }
+    .book-group { margin-bottom: 5px; border: 1px solid #cbd5e0; border-radius: 5px; background: white; overflow: hidden; }
+    .book-header { 
+        padding: 8px 10px; 
+        background: #f1f5f9; 
+        cursor: pointer; 
+        display: flex; 
+        align-items: center; 
+        font-size: 14px; 
+        font-weight: bold;
+        user-select: none;
     }
+    .book-header:hover { background: #e2e8f0; }
+    .book-content { 
+        display: none; 
+        padding: 8px; 
+        grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); 
+        gap: 5px; 
+        border-top: 1px solid #e2e8f0;
+    }
+    .book-content.open { display: grid; }
+    
+    .checkbox-item { display: flex; align-items: center; font-size: 13px; cursor: pointer; }
+    .checkbox-item input { margin-right: 5px; }
+
+    /* 手動舊詞 */
+    .settings-section { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ccc; flex-shrink: 0; }
+    .settings-textarea { width: 100%; height: 60px; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; margin-bottom: 5px; }
+    
+    .controls { display: flex; gap: 10px; margin-top: 10px; }
+    .btn-primary { background: #667eea; color: white; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; flex: 2; }
+    .btn-secondary { background: #cbd5e0; color: #333; padding: 10px; border: none; border-radius: 6px; cursor: pointer; flex: 1; }
+    .btn-sm { padding: 4px 8px; font-size: 12px; border-radius: 4px; border: none; cursor: pointer; }
+    
+    /* 結果顯示 */
+    .output-area { flex: 1; overflow-y: auto; border: 1px solid #eee; border-radius: 10px; padding: 10px; background: #f8fafc; }
+    .vocab-item { 
+        display: flex; 
+        justify-content: space-between; 
+        align-items: center; 
+        padding: 10px; 
+        background: white; 
+        margin-bottom: 6px; 
+        border-radius: 6px; 
+        border-left: 4px solid #ccc;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    
+    .vocab-content { flex: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .vocab-word { font-size: 18px; font-weight: bold; margin-right: 5px; color: #2d3748; }
+    
+    /* 標籤樣式 */
+    .tag { padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: bold; white-space: nowrap; }
+    
+    /* TBCL 顏色 */
+    .tag-tbcl { color: white; background: #a0aec0; }
+    .vocab-item.level-1 .tag-tbcl { background: #48bb78; }
+    .vocab-item.level-2 .tag-tbcl { background: #38b2ac; }
+    .vocab-item.level-3 .tag-tbcl { background: #4299e1; }
+    .vocab-item.level-4 .tag-tbcl { background: #ecc94b; color: #744210; }
+    .vocab-item.level-5 .tag-tbcl { background: #ed8936; }
+    .vocab-item.level-6 .tag-tbcl { background: #9f7aea; }
+    .vocab-item.level-7 .tag-tbcl { background: #f56565; }
+    
+    /* 出處標籤 */
+    .tag-source { background: #ebf8ff; color: #2b6cb0; border: 1px solid #bee3f8; }
+    .tag-source.missing { background: #fff5f5; color: #c53030; border: 1px solid #feb2b2; }
+
+    /* 邊框顏色同步 */
+    .level-1 { border-left-color: #48bb78; }
+    .level-2 { border-left-color: #38b2ac; }
+    .level-3 { border-left-color: #4299e1; }
+    .level-4 { border-left-color: #ecc94b; }
+    .level-5 { border-left-color: #ed8936; }
+    .level-6 { border-left-color: #9f7aea; }
+    .level-7 { border-left-color: #f56565; }
+
+    .stats { margin-top: 10px; font-size: 13px; color: #666; display: flex; justify-content: space-between; }
+
+    /* Modal */
+    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
+    .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border-radius: 12px; width: 300px; text-align: center; }
   </style>
 </head>
 <body>
@@ -241,96 +256,85 @@
 <div class="container">
   <header>
     <h1>教材生詞分析助手</h1>
-    <p>自動中文斷詞、TBCL 分級、多教材舊詞過濾</p>
+    <p>支援：來學華語 / 當代中文課程 / TBCL 分級</p>
   </header>
 
   <div class="main-content">
-    <!-- 左側面板：輸入與設定 -->
+    <!-- 左側面板 -->
     <div class="panel">
       <h2>📝 輸入文章</h2>
       
-      <div style="margin-bottom: 10px; font-size: 14px;">
-        <label style="margin-right: 15px; cursor: pointer;">
-          <input type="checkbox" id="useAdvancedSegmenter" checked> 
-          啟用進階斷詞引擎
-        </label>
-        <label style="margin-right: 15px; cursor: pointer;">
-          <input type="checkbox" id="useGrammarRules" checked> 
-          啟用詞性規則優化
-        </label>
-      </div>
-
-      <!-- 輸入框與背景層 -->
       <div class="input-wrapper">
           <div id="inputBackdrop" class="input-backdrop"></div>
-          <textarea id="inputText" class="input-area" placeholder="請將文章貼在這裡..."></textarea>
+          <textarea id="inputText" class="input-area" placeholder="請貼上文章..."></textarea>
       </div>
-      
-      <!-- 舊詞過濾設定 -->
+
+      <!-- 教材切換 -->
       <div style="margin-top: 10px;">
-        <h2>📚 舊詞範圍設定 <span style="font-size: 0.7em; color: #666; font-weight: normal;">(已選: <span id="selectedLessonCount">0</span> 課)</span></h2>
+        <h3 style="font-size: 16px; margin-bottom: 8px;">📚 舊詞範圍設定 (勾選要避開的課)</h3>
+        <div class="source-switch">
+            <button class="source-btn active" onclick="setSource('lai')">📖 來學華語</button>
+            <button class="source-btn" onclick="setSource('mtc')">📘 當代中文課程</button>
+        </div>
         
-        <!-- 【新增】教材選擇器 -->
-        <div class="source-selector">
-            <button class="source-btn active" onclick="switchSource('lai')">來學華語</button>
-            <button class="source-btn" onclick="switchSource('mtc')">當代中文課程</button>
+        <div class="lesson-selector" id="lessonSelector">
+            <!-- JS 動態生成 -->
+            <div style="padding:10px; color:#666">載入中...</div>
         </div>
-
-        <div class="lesson-selector">
-            <!-- 快速累積與單冊開關的按鈕會由 JS 動態生成 -->
-            <div id="quickControls"></div>
-            <!-- Checkboxes 列表 -->
-            <div id="lessonCheckboxes"><div style="padding: 10px; color: #666;">載入中...</div></div>
+        <div style="text-align: right; font-size: 12px; color: #666;">
+            已選避開：<span id="selectedCount">0</span> 課
         </div>
       </div>
 
-      <!-- 手動舊詞管理 -->
+      <!-- 手動補充 -->
       <div class="settings-section">
-        <h2>⚙️ 手動補充舊詞</h2>
-        <div class="info-box">💡 系統會自動過濾上方勾選的課本單字。如需額外補充，請在下方輸入。</div>
-        <textarea id="oldVocabInput" class="settings-textarea" style="min-height: 80px; height: 80px;" placeholder="輸入要補充的舊詞"></textarea>
-        <div class="button-group">
-          <button id="addOldVocabBtn" class="btn-success">➕ 新增</button>
-          <button id="showOldVocabBtn" class="btn-secondary">📋 顯示</button>
-          <button id="clearOldVocabBtn" class="btn-secondary">🗑️ 清除</button>
+        <h3 style="font-size: 16px; margin-bottom: 5px;">⚙️ 手動補充舊詞</h3>
+        <textarea id="oldVocabInput" class="settings-textarea" placeholder="輸入額外要避開的詞 (空格分隔)"></textarea>
+        <div style="display: flex; gap: 5px;">
+            <button class="btn-sm" style="background:#48bb78; color:white; flex:1;" onclick="addCustomVocab()">➕ 加入</button>
+            <button class="btn-sm" style="background:#e2e8f0; color:#333;" onclick="clearCustomVocab()">🗑️ 清除</button>
         </div>
-        <div style="margin-top: 10px; color: #666;">目前總過濾詞彙數: <strong id="totalBlockedCount">0</strong> 個</div>
-        <div id="vocabStatus" class="status"></div>
+        <div style="font-size: 12px; color: #666; margin-top: 5px;">
+            手動過濾：<span id="customCount">0</span> 個
+        </div>
       </div>
 
-      <!-- 分析按鈕區塊 -->
-      <div class="main-actions">
+      <div class="controls">
         <button id="analyzeBtn" class="btn-primary">🔍 開始分析</button>
         <button id="clearBtn" class="btn-secondary">清除</button>
       </div>
-
     </div>
 
-    <!-- 右側面板：結果 -->
+    <!-- 右側面板 -->
     <div class="panel">
       <h2>
         📊 分析結果
         <div>
-          <button id="copyBtn" class="btn-success" style="padding: 5px 10px; font-size: 14px;">📋 複製</button>
-          <button id="exportBtn" class="btn-secondary" style="padding: 5px 10px; font-size: 14px;">💾 匯出</button>
+            <button class="btn-sm" style="background:#48bb78; color:white;" onclick="copyResults()">📋 複製</button>
+            <button class="btn-sm" style="background:#cbd5e0;" onclick="exportJSON()">💾 匯出</button>
         </div>
       </h2>
       <div id="outputList" class="output-area">
-        <div style="text-align: center; color: #888; margin-top: 50px;">請在左側輸入文字並點擊「開始分析」</div>
+        <div style="text-align: center; color: #999; margin-top: 50px;">
+            請輸入文章並選擇舊詞範圍
+        </div>
       </div>
-      <div class="stats" id="stats"><span>總字數: 0</span><span>生詞數: 0</span></div>
+      <div class="stats" id="stats">
+        <span>總字數: 0</span>
+        <span>生詞數: 0</span>
+      </div>
     </div>
   </div>
 </div>
 
+<!-- 切分視窗 -->
 <div id="splitModal" class="modal">
   <div class="modal-content">
-    <h3 style="margin-bottom: 10px;">✂️ 手動切分單字</h3>
-    <p style="margin-bottom: 10px; font-size: 14px; color: #666;">請在要切分的地方加入<strong>空白</strong>。</p>
-    <input type="text" id="splitInput" class="input-area" style="height: 50px; font-size: 20px; text-align: center;">
-    <div class="controls" style="justify-content: flex-end; margin-top: 15px;">
-        <button onclick="closeSplitModal()" class="btn-secondary">取消</button>
-        <button onclick="confirmSplit()" class="btn-primary">確定</button>
+    <h3>✂️ 手動切分</h3>
+    <input type="text" id="splitInput" style="width: 100%; padding: 8px; margin: 10px 0; font-size: 18px; text-align: center;">
+    <div style="display: flex; gap: 10px; justify-content: center;">
+        <button class="btn-sm" style="background:#e2e8f0;" onclick="closeSplitModal()">取消</button>
+        <button class="btn-sm" style="background:#667eea; color:white;" onclick="confirmSplit()">確定</button>
     </div>
   </div>
 </div>
