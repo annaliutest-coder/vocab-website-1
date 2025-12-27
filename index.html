@@ -40,11 +40,6 @@
       text-shadow: 0 2px 10px rgba(0,0,0,0.2);
     }
     
-    header p {
-      font-size: 14px;
-      opacity: 0.9;
-    }
-    
     .main-content {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -126,7 +121,6 @@
     
     .input-area:focus { outline: none; border-color: #667eea; }
     
-    /* 綠色反白標記 */
     .highlight-marker {
         background-color: #9ae6b4;
         border-radius: 3px;
@@ -198,8 +192,8 @@
     .checkbox-item { display: flex; align-items: center; font-size: 13px; cursor: pointer; }
     .checkbox-item input { margin-right: 5px; }
 
-    /* 手動舊詞 */
-    .settings-section { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ccc; flex-shrink: 0; }
+    /* 其他 UI */
+    .settings-section { margin-top: 20px; padding-top: 10px; border-top: 2px dashed #eee; flex-shrink: 0; }
     .settings-textarea { width: 100%; height: 60px; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; margin-bottom: 5px; }
     .settings-textarea:focus { outline: none; border-color: #667eea; }
     
@@ -222,7 +216,6 @@
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
     
-    /* 標籤容器，支援換行 */
     .vocab-info { flex: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
     .vocab-word { font-size: 18px; font-weight: bold; margin-right: 5px; color: #2d3748; }
     
@@ -231,13 +224,13 @@
     
     /* TBCL 顏色 */
     .tag-tbcl { color: white; background: #a0aec0; }
-    .vocab-item.level-1 .tag-tbcl { background: #48bb78; }
-    .vocab-item.level-2 .tag-tbcl { background: #38b2ac; }
-    .vocab-item.level-3 .tag-tbcl { background: #4299e1; }
-    .vocab-item.level-4 .tag-tbcl { background: #ecc94b; color: #744210; }
-    .vocab-item.level-5 .tag-tbcl { background: #ed8936; }
-    .vocab-item.level-6 .tag-tbcl { background: #9f7aea; }
-    .vocab-item.level-7 .tag-tbcl { background: #f56565; }
+    .level-1 .tag-tbcl { background: #48bb78; }
+    .level-2 .tag-tbcl { background: #38b2ac; }
+    .level-3 .tag-tbcl { background: #4299e1; }
+    .level-4 .tag-tbcl { background: #ecc94b; color: #744210; }
+    .level-5 .tag-tbcl { background: #ed8936; }
+    .level-6 .tag-tbcl { background: #9f7aea; }
+    .level-7 .tag-tbcl { background: #f56565; }
     
     /* 出處標籤 */
     .tag-source { background: #ebf8ff; color: #2b6cb0; border: 1px solid #bee3f8; }
@@ -258,6 +251,9 @@
     .button-group { display: flex; gap: 10px; margin-top: 10px; }
     .status { margin-top: 10px; padding: 10px; border-radius: 5px; display: none; }
     .status.success { background: #c6f6d5; color: #22543d; }
+
+    .vocab-actions { opacity: 0.6; transition: opacity 0.2s; margin-left: 10px; display: flex; gap: 5px; }
+    .vocab-item:hover .vocab-actions { opacity: 1; }
 
     .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
     .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border-radius: 12px; width: 300px; text-align: center; }
@@ -289,9 +285,9 @@
             <button class="source-btn" onclick="setSource('mtc')">📘 當代中文課程</button>
         </div>
         
-        <div class="lesson-selector" id="lessonSelector">
-            <!-- JS 動態生成 -->
-            <div style="padding:10px; color:#666">載入中...</div>
+        <div class="lesson-selector">
+            <div id="quickControls"></div>
+            <div id="lessonCheckboxes"><div style="padding:10px; color:#666">載入中...</div></div>
         </div>
         <div style="text-align: right; font-size: 12px; color: #666;">
             已選避開：<span id="selectedCount">0</span> 課
@@ -302,22 +298,24 @@
       <div class="settings-section">
         <h3 style="font-size: 16px; margin-bottom: 5px;">⚙️ 手動補充舊詞</h3>
         <textarea id="oldVocabInput" class="settings-textarea" placeholder="輸入額外要避開的詞 (空格分隔)"></textarea>
-        <div style="display: flex; gap: 5px;">
-            <button class="btn-sm" style="background:#48bb78; color:white; flex:1;" onclick="addCustomVocab()">➕ 加入</button>
-            <button class="btn-sm" style="background:#e2e8f0; color:#333;" onclick="clearCustomVocab()">🗑️ 清除</button>
+        <div class="button-group">
+          <button id="addOldVocabBtn" class="btn-success">➕ 新增</button>
+          <button id="showOldVocabBtn" class="btn-secondary">📋 顯示</button>
+          <button id="clearOldVocabBtn" class="btn-secondary">🗑️ 清除</button>
         </div>
-        <div style="font-size: 12px; color: #666; margin-top: 5px;">
-            手動過濾：<span id="customCount">0</span> 個
-        </div>
+        <div style="margin-top: 10px; color: #666;">目前總過濾詞彙數: <strong id="totalBlockedCount">0</strong> 個</div>
+        <div id="vocabStatus" class="status"></div>
       </div>
 
-      <div class="controls">
+      <!-- 分析按鈕區塊 -->
+      <div class="main-actions">
         <button id="analyzeBtn" class="btn-primary">🔍 開始分析</button>
         <button id="clearBtn" class="btn-secondary">清除</button>
       </div>
+
     </div>
 
-    <!-- 右側面板 -->
+    <!-- 右側面板：結果 -->
     <div class="panel">
       <h2>
         📊 分析結果
@@ -339,7 +337,6 @@
   </div>
 </div>
 
-<!-- 切分視窗 -->
 <div id="splitModal" class="modal">
   <div class="modal-content">
     <h3>✂️ 手動切分</h3>
