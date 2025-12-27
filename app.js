@@ -1,101 +1,350 @@
-// app.js - 網站版生詞分析助手（含分冊累積選擇、手動切分 & 合併功能 & 綠色反白定位 & 純資料庫過濾）
+// app.js - 網站版生詞分析助手（雙教材切換版）
 
 let tbclData = {};
-let lessonData = {}; 
+let sourcesData = {
+    lai: {}, // 來學華語
+    mtc: {}  // 當代中文課程
+};
+let currentSource = 'lai'; // 當前選擇的教材
 let customOldVocab = new Set();
-let selectedLessons = new Set();
+let selectedLessons = new Set(); // 格式: "lai:B1" 或 "mtc:1-1" (加上前綴以區分)
 let finalBlocklist = new Set();
 
-// 1. 斷詞提示庫：告訴系統這些是「一個詞」，請優先斷出來
-// 注意：這裡只負責斷詞，過濾功能由 finalBlocklist 負責
+// 斷詞提示庫 (包含所有已載入教材的詞彙)
 let knownWords = new Set(["紅色", "護龍", "還都", "看書", "吃飯", "一定", "因為", "大家", "讓"]); 
 
-// 用於手動切分
 let editingIndex = -1;
 let searchState = { word: '', lastIndex: -1 };
-
-const BOOK_ORDER = ['B1', 'B2', 'B3', 'B4', 'B5', 'B6'];
 
 document.addEventListener('DOMContentLoaded', async () => {
   await loadData();
   setupEventListeners();
-  initBackdropSync(); // 初始化背景同步
+  initBackdropSync();
   loadCustomVocab();
-  updateBlocklist();
+  // 初始渲染
+  switchSource('lai'); 
 });
 
 async function loadData() {
   try {
+    // 1. 載入 TBCL
     const tbclRes = await fetch('tbcl_data.json');
     tbclData = await tbclRes.json();
-    const lessonRes = await fetch('vocab_by_lesson.json');
-    lessonData = await lessonRes.json();
-    
-    // ==========================================
-    // 核心修正：預設【不勾選】任何課別
-    // 使用者進入網頁後，需手動選擇要避開的範圍
-    // ==========================================
-    selectedLessons.clear();
-    // 註解掉下面這行，原本是預設全選
-    // Object.keys(lessonData).forEach(k => selectedLessons.add(k));
-    
-    // 將所有課本生詞加入「斷詞提示庫」(knownWords)，確保斷詞準確
-    // 這一步是為了讓斷詞引擎知道這些是詞彙，但過濾與否由 selectedLessons 決定
-    Object.values(lessonData).forEach(wordList => wordList.forEach(w => knownWords.add(w)));
 
-    renderLessonCheckboxes();
-    console.log('資料載入完成');
+    // 2. 載入 來學華語
+    const laiRes = await fetch('learn_chinese_data.json');
+    sourcesData.lai = await laiRes.json();
+
+    // 3. 載入 當代中文課程
+    const mtcRes = await fetch('mtc_data.json');
+    sourcesData.mtc = await mtcRes.json();
+    
+    // 將所有教材的詞彙加入 knownWords 以優化斷詞
+    [sourcesData.lai, sourcesData.mtc].forEach(data => {
+        Object.values(data).forEach(wordList => {
+            if (Array.isArray(wordList)) {
+                wordList.forEach(w => knownWords.add(w));
+            }
+        });
+    });
+
+    console.log('所有資料載入完成');
   } catch (error) {
     console.error('載入失敗:', error);
-    alert('載入資料失敗，請確認 JSON 檔案是否存在');
+    alert('載入資料失敗，請確認 JSON 檔案是否存在 (learn_chinese_data.json, mtc_data.json)');
   }
 }
 
-// === 樣式同步核心 ===
+// === 切換教材 ===
+window.switchSource = function(source) {
+    currentSource = source;
+    
+    // 更新按鈕樣式
+    document.querySelectorAll('.source-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.innerText.includes(source === 'lai' ? '來學華語' : '當代中文')) {
+            btn.classList.add('active');
+        }
+    });
+
+    renderLessonCheckboxes();
+    updateBlocklist(); // 切換後重新計算過濾清單
+}
+
+// === 渲染課程勾選區 (支援動態結構) ===
+function renderLessonCheckboxes() {
+    const container = document.getElementById('lessonCheckboxes');
+    const controlsContainer = document.getElementById('quickControls');
+    container.innerHTML = '';
+    controlsContainer.innerHTML = '';
+
+    const data = sourcesData[currentSource];
+    const keys = Object.keys(data).sort(naturalSort); // 自然排序 (1-2, 1-10)
+
+    // 分析資料結構來決定如何分組
+    // 如果 key 是 "B1", "B2" -> 視為冊別，直接列表
+    // 如果 key 是 "1-1", "1-2" -> 解析出冊別，進行分組
+    
+    const groups = {};
+    const groupOrder = [];
+
+    keys.forEach(key => {
+        let groupName = '全冊';
+        
+        // 嘗試解析 MTC 格式 "1-1" -> Book 1
+        if (key.match(/^\d+-\d+$/)) {
+            const bookNum = key.split('-')[0];
+            groupName = `第 ${bookNum} 冊`;
+        } 
+        // 嘗試解析 Lai 格式 "B1", "B2"
+        else if (key.match(/^B\d+/)) {
+            // 來學華語目前 json 結構若是 "B1", 其實它本身就是一冊
+            // 我們可以把它當作單獨的項目，或者如果您希望 B1 裡面還有 L1, L2...
+            // 根據您提供的檔案，目前是用 B1, B2... 當 Key
+            groupName = key; // 直接用 B1 當群組名，內容就是 B1 的詞
+        }
+
+        if (!groups[groupName]) {
+            groups[groupName] = [];
+            groupOrder.push(groupName);
+        }
+        groups[groupName].push(key);
+    });
+
+    // 1. 生成上方快速按鈕 (針對 MTC 這種多冊的)
+    if (groupOrder.length > 1) {
+        const row = document.createElement('div');
+        row.className = 'control-row';
+        row.innerHTML = `<div class="control-label">📚 快速全選/取消:</div>`;
+        
+        groupOrder.forEach(gName => {
+            const btn = document.createElement('button');
+            btn.className = 'btn-secondary btn-xs';
+            btn.innerText = gName;
+            btn.onclick = () => toggleGroup(gName, true); // 簡易 toggle，稍後實作
+            row.appendChild(btn);
+        });
+        
+        // 清空按鈕
+        const clearBtn = document.createElement('button');
+        clearBtn.className = 'btn-secondary btn-xs';
+        clearBtn.style.color = '#e53e3e';
+        clearBtn.innerText = '全部清空';
+        clearBtn.onclick = () => {
+            // 清除當前 source 的所有選取
+            const prefix = currentSource + ':';
+            // 使用 Array.from 避免迭代時刪除的問題
+            Array.from(selectedLessons).forEach(k => {
+                if (k.startsWith(prefix)) selectedLessons.delete(k);
+            });
+            renderLessonCheckboxes(); // 重繪以更新勾選狀態
+            updateBlocklist();
+        };
+        row.appendChild(clearBtn);
+        
+        controlsContainer.appendChild(row);
+    }
+
+    // 2. 生成詳細列表
+    groupOrder.forEach(gName => {
+        const subKeys = groups[gName];
+        
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'book-group';
+        
+        const header = document.createElement('div');
+        header.className = 'book-header';
+        
+        // 全選該組的 checkbox
+        const masterCb = document.createElement('input');
+        masterCb.type = 'checkbox';
+        masterCb.className = 'book-master-cb';
+        masterCb.dataset.group = gName;
+        
+        // 檢查該組是否全選
+        const prefix = currentSource + ':';
+        const allSelected = subKeys.every(k => selectedLessons.has(prefix + k));
+        const someSelected = subKeys.some(k => selectedLessons.has(prefix + k));
+        masterCb.checked = allSelected;
+        masterCb.indeterminate = someSelected && !allSelected;
+
+        masterCb.onclick = (e) => {
+            e.stopPropagation();
+            const checked = e.target.checked;
+            subKeys.forEach(k => {
+                const fullKey = prefix + k;
+                if (checked) selectedLessons.add(fullKey);
+                else selectedLessons.delete(fullKey);
+            });
+            renderLessonCheckboxes(); // 重繪更新狀態
+            updateBlocklist();
+        };
+
+        const title = document.createElement('span');
+        // 如果 groupName 和 key 一樣 (例如來學華語 B1)，顯示內容詞數
+        let displayTitle = gName;
+        if (subKeys.length === 1 && subKeys[0] === gName) {
+             const count = sourcesData[currentSource][gName]?.length || 0;
+             displayTitle += ` (${count} 詞)`;
+        } else {
+             displayTitle += ` (${subKeys.length} 課)`;
+        }
+        
+        title.innerHTML = `&nbsp; ${displayTitle}`;
+        
+        const arrow = document.createElement('span');
+        arrow.textContent = '▼';
+        arrow.style.marginLeft = 'auto';
+
+        header.append(masterCb, title, arrow);
+        
+        // 內容區
+        const content = document.createElement('div');
+        content.className = 'book-content';
+        // 預設展開第一冊
+        if (groupOrder.indexOf(gName) === 0) {
+            content.classList.add('open');
+            arrow.textContent = '▲';
+        }
+
+        header.onclick = (e) => {
+            if (e.target.type === 'checkbox') return;
+            content.classList.toggle('open');
+            arrow.textContent = content.classList.contains('open') ? '▲' : '▼';
+        };
+
+        // 如果該組只有一個項目且名稱相同 (例如來學華語 B1)，就不需要展開內容了，直接用標題控制即可
+        // 但為了統一，我們還是列出來，或者隱藏 content 保留結構
+        if (!(subKeys.length === 1 && subKeys[0] === gName)) {
+            subKeys.forEach(key => {
+                const lbl = document.createElement('label');
+                lbl.className = 'checkbox-item';
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.value = key;
+                cb.checked = selectedLessons.has(prefix + key);
+                cb.onchange = () => {
+                    const fullKey = prefix + key;
+                    if (cb.checked) selectedLessons.add(fullKey);
+                    else selectedLessons.delete(fullKey);
+                    updateBlocklist();
+                    // 更新 master checkbox 狀態 (簡易做法：重繪 master)
+                    const newAll = subKeys.every(k => selectedLessons.has(prefix + k));
+                    const newSome = subKeys.some(k => selectedLessons.has(prefix + k));
+                    masterCb.checked = newAll;
+                    masterCb.indeterminate = newSome && !newAll;
+                };
+                lbl.append(cb, key);
+                content.appendChild(lbl);
+            });
+            groupDiv.append(header, content);
+        } else {
+            // 單一項目模式 (Header 直接控制)
+            // 這裡不需要 content，Header 的 checkbox 已經足夠控制
+            // 但為了讓視覺一致，我們保留 header
+            groupDiv.append(header);
+        }
+
+        container.appendChild(groupDiv);
+    });
+    
+    updateSelectedCountUI();
+}
+
+// 輔助：自然排序 (讓 1-2 排在 1-10 前面)
+function naturalSort(a, b) {
+    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+}
+
+// 快速切換群組 (上方按鈕)
+window.toggleGroup = function(gName, forceState) {
+    // 找出該群組的所有 keys
+    const data = sourcesData[currentSource];
+    const keys = Object.keys(data).filter(k => {
+        if (gName.startsWith('第')) {
+            // MTC: "第 1 冊" -> match "1-1", "1-2"
+            const bookNum = gName.match(/\d+/)[0];
+            return k.startsWith(bookNum + '-');
+        } else {
+            // Lai: "B1" -> match "B1"
+            return k === gName;
+        }
+    });
+
+    const prefix = currentSource + ':';
+    // 檢查目前是否全選，如果是則全取消，否則全選
+    const allSelected = keys.every(k => selectedLessons.has(prefix + k));
+    const newState = !allSelected;
+
+    keys.forEach(k => {
+        const fullKey = prefix + k;
+        if (newState) selectedLessons.add(fullKey);
+        else selectedLessons.delete(fullKey);
+    });
+
+    renderLessonCheckboxes();
+    updateBlocklist();
+}
+
+function updateSelectedCountUI() {
+    document.getElementById('selectedLessonCount').innerText = selectedLessons.size;
+}
+
+function updateBlocklist() {
+    finalBlocklist.clear();
+    
+    // 遍歷所有選取的課程代號 (例如 "mtc:1-1", "lai:B1")
+    selectedLessons.forEach(fullKey => {
+        const [source, key] = fullKey.split(':');
+        if (sourcesData[source] && sourcesData[source][key]) {
+            const words = sourcesData[source][key];
+            words.forEach(w => finalBlocklist.add(w));
+        }
+    });
+    
+    customOldVocab.forEach(w => finalBlocklist.add(w));
+    
+    document.getElementById('totalBlockedCount').innerText = finalBlocklist.size;
+    updateSelectedCountUI();
+}
+
+// === 其他原有功能保持不變 ===
+
 function initBackdropSync() {
     const input = document.getElementById('inputText');
     const backdrop = document.getElementById('inputBackdrop');
     
-    // 1. 同步 CSS 樣式
     const syncStyles = () => {
         const style = window.getComputedStyle(input);
         const props = [
             'fontFamily', 'fontSize', 'lineHeight', 'letterSpacing', 'wordSpacing',
             'paddingTop', 'paddingBottom', 'paddingLeft', 'paddingRight',
             'borderTopWidth', 'borderBottomWidth', 'borderLeftWidth', 'borderRightWidth',
-            'boxSizing' // 重要
+            'boxSizing'
         ];
         props.forEach(p => backdrop.style[p] = style[p]);
-        
-        // 修正寬度：使用 clientWidth 排除捲軸寬度，確保文字折行位置一致
         backdrop.style.width = input.clientWidth + 'px';
     };
 
-    // 2. 監聽捲動
     const syncScroll = () => {
         backdrop.scrollTop = input.scrollTop;
         backdrop.scrollLeft = input.scrollLeft;
     };
 
-    // 3. 綁定事件
     input.addEventListener('scroll', syncScroll);
     input.addEventListener('input', () => {
-        // 輸入時清空背景，避免舊的 highlight 殘留錯位
         backdrop.innerHTML = '';
         syncScroll();
     });
     
-    // 視窗改變大小時重新計算
     new ResizeObserver(() => {
         syncStyles();
         syncScroll();
     }).observe(input);
     
-    // 初始執行
     setTimeout(syncStyles, 100);
 }
 
-// 產生綠色底色標記 (無反白選取)
 function highlightWordInInput(word) {
     const input = document.getElementById('inputText');
     const backdrop = document.getElementById('inputBackdrop');
@@ -119,35 +368,26 @@ function highlightWordInInput(word) {
     
     searchState.lastIndex = index;
 
-    // 分割文字
     const before = text.substring(0, index);
     const target = text.substring(index, index + word.length);
     const after = text.substring(index + word.length);
 
-    // 建立 Span 底色標記 (對應 index.html 的 .highlight-marker 綠色樣式)
     const highlightMarker = `<span class="highlight-marker">${escapeHTML(target)}</span>`;
 
-    // 組合 HTML，特別處理結尾換行
     let htmlContent = escapeHTML(before) + highlightMarker + escapeHTML(after);
     if (text.endsWith('\n')) {
-        htmlContent += '<br>'; // 修正 div 最後一個換行不顯示的問題
+        htmlContent += '<br>'; 
     }
 
     backdrop.innerHTML = htmlContent;
 
-    // 只捲動到該位置，不執行 setSelectionRange (不反白)
     const marker = backdrop.querySelector('.highlight-marker');
     if (marker) {
-        // 計算捲動位置，讓標記出現在畫面中間
         const offsetTop = marker.offsetTop;
         const scrollTarget = offsetTop - (input.clientHeight / 2) + (marker.offsetHeight / 2);
-        
-        // 設定捲動 (會透過 syncScroll 自動同步 backdrop)
         input.scrollTop = scrollTarget;
-        
-        // 確保輸入框獲得焦點，方便鍵盤操作，但不要選取文字
         input.focus(); 
-        input.setSelectionRange(index, index); // 將游標置於詞彙開頭，但不選取
+        input.setSelectionRange(index, index);
     }
 }
 
@@ -156,151 +396,17 @@ function escapeHTML(text) {
                .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
-function renderLessonCheckboxes() {
-  const container = document.getElementById('lessonCheckboxes');
-  container.innerHTML = '';
-  const books = {};
-  BOOK_ORDER.forEach(b => books[b] = []);
-  Object.keys(lessonData).forEach(k => {
-    const m = k.match(/^(B\d+)/);
-    if (m && books[m[1]]) books[m[1]].push(k);
-  });
-
-  BOOK_ORDER.forEach(bookName => {
-      const lessons = books[bookName];
-      if (lessons.length === 0) return;
-      lessons.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-
-      const groupDiv = document.createElement('div');
-      groupDiv.className = 'book-group';
-      
-      const header = document.createElement('div');
-      header.className = 'book-header';
-      
-      const masterCb = document.createElement('input');
-      masterCb.type = 'checkbox';
-      masterCb.className = 'book-master-cb';
-      masterCb.dataset.book = bookName;
-      masterCb.onclick = (e) => {
-          e.stopPropagation();
-          const checked = e.target.checked;
-          const lessonCbs = groupDiv.querySelectorAll('.lesson-cb');
-          lessonCbs.forEach(cb => {
-              cb.checked = checked;
-              if (checked) selectedLessons.add(cb.value); else selectedLessons.delete(cb.value);
-          });
-          updateBlocklist();
-      };
-
-      header.innerHTML += `<span> ${bookName} (${lessons.length} 課)</span>`;
-      const arrow = document.createElement('span');
-      arrow.textContent = '▼';
-      arrow.style.marginLeft = 'auto';
-      header.appendChild(arrow);
-      header.prepend(masterCb);
-
-      const content = document.createElement('div');
-      content.className = 'book-content';
-      content.id = `content-${bookName}`;
-      if (bookName === 'B1') { content.classList.add('open'); arrow.textContent = '▲'; }
-
-      header.onclick = (e) => {
-          if (e.target.type === 'checkbox') return;
-          content.classList.toggle('open');
-          arrow.textContent = content.classList.contains('open') ? '▲' : '▼';
-      };
-
-      lessons.forEach(l => {
-          const lbl = document.createElement('label');
-          lbl.className = 'checkbox-item';
-          const cb = document.createElement('input');
-          cb.type = 'checkbox';
-          cb.value = l;
-          cb.className = `lesson-cb book-${bookName}`;
-          // 這裡根據 selectedLessons 設定是否勾選，現在預設為 false
-          cb.checked = selectedLessons.has(l);
-          cb.onchange = () => {
-              if (cb.checked) selectedLessons.add(l); else selectedLessons.delete(l);
-              updateBlocklist();
-          };
-          lbl.append(cb, l);
-          content.appendChild(lbl);
-      });
-      groupDiv.append(header, content);
-      container.appendChild(groupDiv);
-  });
-  updateBookMasterStatus();
-  updateSelectedCountUI();
+function loadCustomVocab() {
+    const stored = localStorage.getItem('customOldVocab');
+    if (stored) {
+        const list = JSON.parse(stored);
+        list.forEach(w => customOldVocab.add(w));
+    }
 }
 
-function updateBookMasterStatus() {
-    BOOK_ORDER.forEach(b => {
-        const cbs = document.querySelectorAll(`.lesson-cb.book-${b}`);
-        if (!cbs.length) return;
-        const checked = document.querySelectorAll(`.lesson-cb.book-${b}:checked`).length;
-        const master = document.querySelector(`.book-master-cb[data-book="${b}"]`);
-        if (master) {
-            master.checked = checked === cbs.length && cbs.length > 0;
-            master.indeterminate = checked > 0 && checked < cbs.length;
-        }
-    });
-}
-
-window.selectUpTo = function(targetBook) {
-    const idx = BOOK_ORDER.indexOf(targetBook);
-    if (idx === -1) return;
-    const cbs = document.querySelectorAll('.lesson-cb');
-    cbs.forEach(cb => {
-        const m = cb.value.match(/^(B\d+)/);
-        if (m) {
-            const bIdx = BOOK_ORDER.indexOf(m[1]);
-            if (bIdx <= idx) { cb.checked = true; selectedLessons.add(cb.value); }
-            else { cb.checked = false; selectedLessons.delete(cb.value); }
-        }
-    });
+function saveCustomVocab() {
+    localStorage.setItem('customOldVocab', JSON.stringify([...customOldVocab]));
     updateBlocklist();
-    document.querySelectorAll('.book-content').forEach(el => el.classList.remove('open'));
-    const tContent = document.getElementById(`content-${targetBook}`);
-    if (tContent) tContent.classList.add('open');
-}
-
-window.toggleBook = function(targetBook) {
-    const cbs = document.querySelectorAll(`.lesson-cb.book-${targetBook}`);
-    const allChecked = Array.from(cbs).every(c => c.checked);
-    cbs.forEach(cb => {
-        cb.checked = !allChecked;
-        if (!allChecked) selectedLessons.add(cb.value); else selectedLessons.delete(cb.value);
-    });
-    updateBlocklist();
-}
-
-window.toggleAllLessons = function(checked) {
-    const cbs = document.querySelectorAll('.lesson-cb');
-    selectedLessons.clear();
-    cbs.forEach(cb => {
-        cb.checked = checked;
-        if (checked) selectedLessons.add(cb.value);
-    });
-    updateBlocklist();
-}
-
-function updateSelectedCountUI() {
-    document.getElementById('selectedLessonCount').innerText = selectedLessons.size;
-}
-
-function updateBlocklist() {
-    finalBlocklist.clear();
-    // 1. 加入勾選的課本詞彙
-    selectedLessons.forEach(l => {
-        if (lessonData[l]) lessonData[l].forEach(w => finalBlocklist.add(w));
-    });
-    
-    // 2. 加入手動補充的詞彙
-    customOldVocab.forEach(w => finalBlocklist.add(w));
-    
-    document.getElementById('totalBlockedCount').innerText = finalBlocklist.size;
-    updateSelectedCountUI();
-    updateBookMasterStatus();
 }
 
 function setupEventListeners() {
@@ -331,7 +437,6 @@ function setupEventListeners() {
     input.value = '';
     showStatus(`已新增 ${addedCount} 個補充舊詞`, 'success');
     
-    // 新增舊詞後，立即重新分析
     if (document.getElementById('inputText').value.trim()) {
         analyzeText(); 
     }
@@ -349,7 +454,6 @@ function setupEventListeners() {
         saveCustomVocab();
         document.getElementById('oldVocabInput').value = '';
         showStatus('已清除補充舊詞', 'success');
-        // 清除後也重新分析
         if (document.getElementById('inputText').value.trim()) {
             analyzeText(); 
         }
