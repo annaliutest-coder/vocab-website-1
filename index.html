@@ -40,6 +40,11 @@
       text-shadow: 0 2px 10px rgba(0,0,0,0.2);
     }
     
+    header p {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+    
     .main-content {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -98,6 +103,7 @@
         word-wrap: break-word;
         pointer-events: none;
         border-radius: 10px;
+        padding: 15px; /* 預設 padding，JS會覆蓋 */
     }
 
     .input-area {
@@ -216,6 +222,7 @@
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
     
+    /* 標籤容器，支援換行 */
     .vocab-info { flex: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
     .vocab-word { font-size: 18px; font-weight: bold; margin-right: 5px; color: #2d3748; }
     
@@ -224,13 +231,13 @@
     
     /* TBCL 顏色 */
     .tag-tbcl { color: white; background: #a0aec0; }
-    .level-1 .tag-tbcl { background: #48bb78; }
-    .level-2 .tag-tbcl { background: #38b2ac; }
-    .level-3 .tag-tbcl { background: #4299e1; }
-    .level-4 .tag-tbcl { background: #ecc94b; color: #744210; }
-    .level-5 .tag-tbcl { background: #ed8936; }
-    .level-6 .tag-tbcl { background: #9f7aea; }
-    .level-7 .tag-tbcl { background: #f56565; }
+    .vocab-item.level-1 .tag-tbcl { background: #48bb78; }
+    .vocab-item.level-2 .tag-tbcl { background: #38b2ac; }
+    .vocab-item.level-3 .tag-tbcl { background: #4299e1; }
+    .vocab-item.level-4 .tag-tbcl { background: #ecc94b; color: #744210; }
+    .vocab-item.level-5 .tag-tbcl { background: #ed8936; }
+    .vocab-item.level-6 .tag-tbcl { background: #9f7aea; }
+    .vocab-item.level-7 .tag-tbcl { background: #f56565; }
     
     /* 出處標籤 */
     .tag-source { background: #ebf8ff; color: #2b6cb0; border: 1px solid #bee3f8; }
@@ -257,6 +264,9 @@
 
     .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
     .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border-radius: 12px; width: 300px; text-align: center; }
+    
+    .control-row { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #e2e8f0; }
+    .control-label { font-size: 13px; color: #666; margin-bottom: 6px; font-weight: bold; }
   </style>
 </head>
 <body>

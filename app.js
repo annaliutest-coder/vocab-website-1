@@ -1,6 +1,5 @@
-// app.js - 多教材生詞分析助手 (含出處與等級標示)
+// app.js - 多教材生詞分析助手 (修正過濾、新增標籤)
 
-// 全域資料
 let tbclData = {};
 let dataSources = {
     lai: {}, // 來學華語
@@ -8,14 +7,12 @@ let dataSources = {
 };
 let currentSource = 'lai'; // 當前選擇的教材
 
-// 狀態
-let selectedLessons = new Set(); // 已勾選的課 (格式: "lai:B1" 或 "mtc:1-1")
-let customVocab = new Set();     // 手動補充的詞
-let knownWords = new Set();      // 斷詞參考庫 (包含所有教材詞彙，用於提升斷詞準確度)
+let selectedLessons = new Set(); // 格式: "lai:B1" 或 "mtc:1-1"
+let customVocab = new Set();     // 手動補充
+let knownWords = new Set(["紅色", "護龍", "還都", "看書", "吃飯", "一定", "因為", "大家", "讓"]); // 斷詞參考
 let finalBlocklist = new Set();  // 最終過濾清單
 
-// 反向索引：詞 -> 最早出處 (用於顯示標籤)
-// 結構: { lai: { "你好": "B1" }, mtc: { "你好": "1-1" } }
+// 反向索引：詞 -> 最早出處
 let reverseIndex = { lai: {}, mtc: {} };
 
 let editingIndex = -1;
@@ -26,8 +23,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadAllData();
     setupEvents();
     initBackdropSync();
-    
-    // 初始化設定：預設使用來學華語，且不勾選任何舊詞
     setSource('lai'); 
     loadCustomVocab();
 });
@@ -52,22 +47,18 @@ async function loadAllData() {
         console.log('所有資料載入完成');
     } catch (e) {
         console.error(e);
-        alert('載入資料失敗，請確認 JSON 檔案是否存在 (learn_chinese_data.json, mtc_data.json, tbcl_data.json)');
+        alert('載入資料失敗，請確認 JSON 檔案是否存在');
     }
 }
 
-// 處理單一教材資料：建立斷詞參考與反向索引
 function processDataSource(sourceName, data) {
-    // 需要排序課別，確保找到的是「最早」出處 (例如 1-1 比 1-5 早)
     const sortedKeys = Object.keys(data).sort(naturalSort);
-    
     sortedKeys.forEach(lesson => {
         const words = data[lesson];
         if (Array.isArray(words)) {
             words.forEach(w => {
-                knownWords.add(w); // 加入斷詞參考，避免被切碎
-                
-                // 記錄最早出處 (如果還沒記錄過)
+                knownWords.add(w); 
+                // 記錄最早出處
                 if (!reverseIndex[sourceName][w]) {
                     reverseIndex[sourceName][w] = lesson;
                 }
@@ -80,7 +71,6 @@ function processDataSource(sourceName, data) {
 window.setSource = function(source) {
     currentSource = source;
     
-    // 更新按鈕 UI
     document.querySelectorAll('.source-btn').forEach(btn => btn.classList.remove('active'));
     const activeBtnText = source === 'lai' ? '來學華語' : '當代中文';
     Array.from(document.querySelectorAll('.source-btn'))
@@ -90,13 +80,13 @@ window.setSource = function(source) {
     renderCheckboxes();
     updateSelectedCount();
     
-    // 如果有文字，重新分析以更新標籤 (因為出處標籤會隨教材改變)
+    // 重新分析以更新標籤
     if (document.getElementById('inputText').value.trim()) {
         analyzeText();
     }
 }
 
-// 3. 渲染勾選清單 (分組邏輯)
+// 3. 渲染勾選清單
 function renderCheckboxes() {
     const container = document.getElementById('lessonCheckboxes');
     const controlsContainer = document.getElementById('quickControls');
@@ -104,21 +94,18 @@ function renderCheckboxes() {
     controlsContainer.innerHTML = '';
 
     const data = dataSources[currentSource];
+    if (!data) return;
+
     const keys = Object.keys(data).sort(naturalSort);
-    
-    // 分組
     const groups = {};
     const groupOrder = []; 
 
     keys.forEach(key => {
         let groupName = '全冊';
-        // MTC: 1-1 -> 第 1 冊
-        if (key.match(/^\d+-\d+/)) {
+        if (key.match(/^\d+-\d+/)) { // MTC 1-1 -> 第 1 冊
             const book = key.split('-')[0];
             groupName = `第 ${book} 冊`;
-        }
-        // Lai: B1 -> B1 (或者可以歸類為 "第一冊")
-        else if (key.match(/^B\d+/)) {
+        } else if (key.match(/^B\d+/)) { // Lai B1 -> B1
             groupName = key;
         }
 
@@ -129,7 +116,7 @@ function renderCheckboxes() {
         groups[groupName].push(key);
     });
 
-    // 生成上方快速按鈕 (如果分組超過1個)
+    // 快速按鈕
     if (groupOrder.length > 1) {
         const row = document.createElement('div');
         row.className = 'control-row';
@@ -159,7 +146,7 @@ function renderCheckboxes() {
         controlsContainer.appendChild(row);
     }
 
-    // 生成詳細列表
+    // 生成列表
     groupOrder.forEach(gName => {
         const subKeys = groups[gName];
         const groupDiv = document.createElement('div');
@@ -191,7 +178,6 @@ function renderCheckboxes() {
 
         const title = document.createElement('span');
         let titleText = gName;
-        // 如果是 B1 這種單一群組，顯示詞數；如果是多課群組，顯示課數
         if (subKeys.length === 1 && subKeys[0] === gName) {
              const count = data[gName].length;
              titleText += ` (${count} 詞)`;
@@ -210,7 +196,7 @@ function renderCheckboxes() {
         content.className = 'book-content';
         
         // MTC 預設展開第一冊
-        if (groupOrder.indexOf(gName) === 0) {
+        if (gName.includes('第 1 冊') || gName === 'B1') {
             content.classList.add('open');
             arrow.textContent = '▲';
         }
@@ -221,7 +207,6 @@ function renderCheckboxes() {
             arrow.textContent = content.classList.contains('open') ? '▲' : '▼';
         };
 
-        // 如果不是單一項目 (像 Lai B1)，才顯示子選單
         if (!(subKeys.length === 1 && subKeys[0] === gName)) {
             subKeys.forEach(k => {
                 const label = document.createElement('label');
@@ -244,7 +229,8 @@ function renderCheckboxes() {
     updateSelectedCount();
 }
 
-function toggleGroup(gName, keys) {
+// 快速切換群組
+window.toggleGroup = function(gName, keys) {
     const prefix = currentSource + ':';
     const allSelected = keys.every(k => selectedLessons.has(prefix + k));
     const newState = !allSelected;
@@ -273,11 +259,10 @@ function updateSelectedCount() {
     document.getElementById('selectedCount').innerText = count;
 }
 
-// 更新過濾清單 (重要修正)
+// 更新過濾清單 (重要!)
 function updateBlocklist() {
     finalBlocklist.clear();
     
-    // 遍歷所有選取的課程代號 (例如 "mtc:1-1", "lai:B1")
     selectedLessons.forEach(fullKey => {
         const [source, key] = fullKey.split(':');
         if (dataSources[source] && dataSources[source][key]) {
@@ -288,7 +273,11 @@ function updateBlocklist() {
     customVocab.forEach(w => finalBlocklist.add(w));
     
     document.getElementById('totalBlockedCount').innerText = finalBlocklist.size;
-    updateSelectedCount();
+    
+    // 如果有文字，自動重新分析 (即時反應)
+    if (document.getElementById('inputText').value.trim()) {
+        analyzeText();
+    }
 }
 
 // 4. 分析核心
@@ -296,22 +285,18 @@ function analyzeText() {
     const text = document.getElementById('inputText').value;
     if (!text.trim()) return;
 
-    // 清空背景
     document.getElementById('inputBackdrop').innerHTML = '';
-
-    // 更新過濾清單
-    updateBlocklist();
+    searchState = { word: '', lastIndex: -1 };
 
     // 斷詞
     let words = [];
-    const useAdvanced = document.getElementById('useAdvancedSegmenter').checked;
-    const useGrammar = document.getElementById('useGrammarRules').checked;
-    
+    // 雖然這裡不使用 advancedSegment 參數，但保留擴充性
     const segmentDict = { ...tbclData };
     knownWords.forEach(w => { if (!segmentDict[w]) segmentDict[w] = '0'; });
     
-    if (useAdvanced && typeof advancedSegment !== 'undefined') {
-        words = advancedSegment(text, segmentDict, finalBlocklist, true, useGrammar);
+    if (typeof advancedSegment !== 'undefined') {
+        // 使用 finalBlocklist 作為已知詞的一部分，防止切碎舊詞
+        words = advancedSegment(text, segmentDict, finalBlocklist, true, true);
     } else {
         const segmenter = new Intl.Segmenter('zh-TW', { granularity: 'word' });
         words = Array.from(segmenter.segment(text)).map(s => s.segment);
@@ -322,23 +307,23 @@ function analyzeText() {
     const seen = new Set();
 
     words.forEach(w => {
-        if (/^[^\w\u4e00-\u9fa5]+$/.test(w) || !w.trim()) return; // 跳過標點
-        if (finalBlocklist.has(w)) return; // 過濾舊詞
-        if (seen.has(w)) return; // 去重
+        if (/^[^\w\u4e00-\u9fa5]+$/.test(w) || !w.trim()) return; 
+        if (finalBlocklist.has(w)) return; // 過濾
+        if (seen.has(w)) return; 
         
         seen.add(w);
         
-        // 取得資訊
+        // TBCL
         const tbclLevel = tbclData[w]; 
         let levelDisplay = tbclLevel ? (tbclLevel.match(/\d+/) ? tbclLevel.match(/\d+/)[0] : tbclLevel) : null;
         
-        // 取得出處 (依據當前選擇的教材)
+        // 出處
         const sourceLesson = reverseIndex[currentSource][w];
         
         results.push({
             word: w,
-            level: levelDisplay, // null 代表 TBCL 無
-            source: sourceLesson // null 代表該教材無
+            level: levelDisplay, 
+            source: sourceLesson
         });
     });
 
@@ -346,7 +331,7 @@ function analyzeText() {
     displayResults();
 }
 
-// 5. 顯示結果
+// 5. 顯示結果 (含標籤)
 function displayResults() {
     const container = document.getElementById('outputList');
     container.innerHTML = '';
@@ -359,24 +344,19 @@ function displayResults() {
         return;
     }
 
-    // 標籤名稱對照
     const srcLabel = currentSource === 'lai' ? '來' : '當';
 
     list.forEach((item, idx) => {
         const div = document.createElement('div');
-        // 等級樣式 Class
         const lvlClass = item.level ? `level-${item.level}` : 'level-0';
         div.className = `vocab-item ${lvlClass}`;
         div.title = '點擊定位';
         div.onclick = (e) => {
             if (e.target.tagName === 'BUTTON') return;
-            highlightWord(item.word);
+            highlightWordInInput(item.word);
         };
 
-        // TBCL 標籤
         const tbclText = item.level ? `TBCL ${item.level}` : 'TBCL無';
-        
-        // 出處標籤
         const srcText = item.source ? `${srcLabel} ${item.source}` : `《${srcLabel}》無`;
         const srcClass = item.source ? '' : 'missing';
 
@@ -400,62 +380,61 @@ function displayResults() {
     document.getElementById('stats').innerHTML = `<span>總字數: ${document.getElementById('inputText').value.length}</span><span>生詞數: ${list.length}</span>`;
 }
 
-// === 輔助功能 ===
-
-// 手動補充
+// 輔助功能
 window.addCustomVocab = () => {
     const val = document.getElementById('oldVocabInput').value;
     if (!val.trim()) return;
     val.split(/\s+/).forEach(w => {
         if (w.trim()) {
             customVocab.add(w.trim());
-            knownWords.add(w.trim()); // 也要加入斷詞庫
+            knownWords.add(w.trim());
         }
     });
     document.getElementById('oldVocabInput').value = '';
-    updateCustomCount();
-    if (document.getElementById('inputText').value.trim()) analyzeText();
+    updateBlocklist();
 };
 
 window.clearCustomVocab = () => {
     customVocab.clear();
-    updateCustomCount();
-    if (document.getElementById('inputText').value.trim()) analyzeText();
+    updateBlocklist();
 };
 
-function updateCustomCount() {
-    document.getElementById('customCount').innerText = customVocab.size;
-}
-
 // 綠色定位
-function highlightWord(word) {
+function highlightWordInInput(word) {
     const input = document.getElementById('inputText');
     const backdrop = document.getElementById('inputBackdrop');
+    if (!input || !word) return;
+
     const text = input.value;
     
-    // 搜尋
-    let idx = text.indexOf(word);
-    if (idx === -1) return;
+    if (searchState.word !== word) {
+        searchState.word = word;
+        searchState.lastIndex = -1;
+    }
 
-    const pre = text.substring(0, idx);
-    const target = text.substring(idx, idx + word.length);
-    const post = text.substring(idx + word.length);
+    let index = text.indexOf(word, searchState.lastIndex + 1);
+    if (index === -1) {
+        index = text.indexOf(word, 0); 
+        if (index === -1) { alert(`在原文中找不到「${word}」`); return; }
+    }
+    
+    searchState.lastIndex = index;
 
-    backdrop.innerHTML = escapeHTML(pre) + 
-        `<span class="highlight-marker">${escapeHTML(target)}</span>` + 
-        escapeHTML(post) + (text.endsWith('\n') ? '<br>' : '');
+    const before = text.substring(0, index);
+    const target = text.substring(index, index + word.length);
+    const after = text.substring(index + word.length);
+    const highlightMarker = `<span class="highlight-marker">${escapeHTML(target)}</span>`;
+    let htmlContent = escapeHTML(before) + highlightMarker + escapeHTML(after);
+    if (text.endsWith('\n')) htmlContent += '<br>';
+    backdrop.innerHTML = htmlContent;
 
-    // 捲動
     const marker = backdrop.querySelector('.highlight-marker');
     if (marker) {
-        // 將 highlight 元素捲動到可視區域中央
-        const inputRect = input.getBoundingClientRect();
-        const markerRect = marker.getBoundingClientRect();
-        // 這邊需要一點技巧，因為 backdrop 是絕對定位且與 input 同步捲動
-        // 最簡單的方法是直接計算 offsetTop
-        input.scrollTop = marker.offsetTop - (input.clientHeight / 2) + (marker.offsetHeight / 2);
-        input.focus();
-        input.setSelectionRange(idx, idx);
+        const offsetTop = marker.offsetTop;
+        const scrollTarget = offsetTop - (input.clientHeight / 2) + (marker.offsetHeight / 2);
+        input.scrollTop = scrollTarget;
+        input.focus(); 
+        input.setSelectionRange(index, index);
     }
 }
 
@@ -473,7 +452,6 @@ function initBackdropSync() {
             'boxSizing', 'width'
         ];
         props.forEach(p => backdrop.style[p] = style[p]);
-        // 確保寬度扣除捲軸
         backdrop.style.width = input.clientWidth + 'px';
     };
 
@@ -505,10 +483,9 @@ function setupEvents() {
         lastAnalysisResult = [];
     };
     
-    // Copy & Export
     document.getElementById('copyBtn').onclick = () => {
         if (!lastAnalysisResult.length) return;
-        const t = lastAnalysisResult.map((i,idx)=>`${idx+1}. ${i.word} (TBCL: ${i.level||'-'}, Source: ${i.source||'-'})`).join('\n');
+        const t = lastAnalysisResult.map((i,idx)=>`${idx+1}. ${i.word}`).join('\n');
         navigator.clipboard.writeText(t).then(()=>alert('已複製'));
     };
     document.getElementById('exportBtn').onclick = () => {
@@ -525,12 +502,14 @@ function setupEvents() {
     });
 }
 
-// 切分與合併 (含學習機制)
+// 切分與合併
 window.mergeWords = (i) => {
     const l = lastAnalysisResult;
-    const newWord = l[i].word + l[i+1].word;
-    knownWords.add(newWord); 
-    analyzeText(); 
+    const w = l[i].word + l[i+1].word;
+    knownWords.add(w); 
+    if (finalBlocklist.has(w)) l.splice(i, 2); 
+    else l.splice(i, 2, { word: w, level: tbclData[w] || null, source: reverseIndex[currentSource][w] });
+    displayResults();
 };
 
 window.openSplitModal = (i) => {
@@ -540,19 +519,32 @@ window.openSplitModal = (i) => {
     setTimeout(()=>document.getElementById('splitInput').focus(), 100);
 };
 window.closeSplitModal = () => document.getElementById('splitModal').style.display = 'none';
+
 window.confirmSplit = () => {
     const val = document.getElementById('splitInput').value;
     const parts = val.split(/\s+/).filter(x=>x);
-    // 學習：移除舊詞，加入新詞
+    
     knownWords.delete(lastAnalysisResult[editingIndex].word);
     parts.forEach(p => knownWords.add(p));
     
+    const ins = [];
+    parts.forEach(w => {
+        if (!finalBlocklist.has(w)) { 
+            ins.push({ 
+                word: w, 
+                level: tbclData[w] ? (tbclData[w].match(/\d+/) ? tbclData[w].match(/\d+/)[0] : tbclData[w]) : null,
+                source: reverseIndex[currentSource][w]
+            });
+        }
+    });
+    
+    lastAnalysisResult.splice(editingIndex, 1, ...ins);
+    displayResults();
     closeSplitModal();
-    analyzeText();
 };
 
 function naturalSort(a, b) {
     return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
 }
 function escapeHTML(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
-function loadCustomVocab() { /* 保持不變 */ }
+function loadCustomVocab() { /* 如前 */ }
